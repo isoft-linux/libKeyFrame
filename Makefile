@@ -21,7 +21,8 @@ all: libKeyFrame
 
 libKeyFrame:
 	$(CC) -o libKeyFrame.o -c $(CFLAGS) $(CPATH) libKeyFrame.c
-	$(CC) -o libKeyFrame.so libKeyFrame.o $(LIBPATH) $(LIBS) -shared
+	$(CC) -o TinyPngOut.o -c $(CFLAGS) $(CPATH) TinyPngOut.c
+	$(CC) -o libKeyFrame.so libKeyFrame.o TinyPngOut.o $(LIBPATH) $(LIBS) -shared
 
 test:
 	$(CC) -o test.o -c $(CFLAGS) $(CPATH) test.c

@@ -29,6 +29,7 @@
 #include <png.h>
 
 #include "libKeyFrame.h"
+#include "TinyPngOut.h"
 
 static AVFormatContext *fmt_ctx = NULL;
 static AVCodecContext *video_dec_ctx = NULL;
@@ -50,6 +51,7 @@ static int refcount = 0;
 
 static AVFrame *frameRGB = NULL;
 static struct SwsContext *sws_ctx = NULL;
+static char outputDir[PATH_MAX] = { '\0' };
 
 /*
  * raw, linesize, width, height, filename
@@ -57,16 +59,23 @@ static struct SwsContext *sws_ctx = NULL;
 static void pgm_save(unsigned char *buf, int wrap, int xsize, int ysize,           
                      char *filename)                                               
 {                                                                                  
-    FILE *f;
+    FILE *f = NULL;
     int i;
-                                                                                   
-    f = fopen(filename, "wb");                                                       
-    fprintf(f, "P5\n%d %d\n%d\n", xsize, ysize, 255);                              
-    for (i = 0; i < ysize; i++)
-        fwrite(buf + i * wrap, 1, xsize, f);
-    fclose(f);
+
+    f = fopen(filename, "wb");
+    if (f) {
+        fprintf(f, "P5\n%d %d\n%d\n", xsize, ysize, 255);
+        for (i = 0; i < ysize; i++)
+            fwrite(buf + i * wrap, 1, xsize, f);
+        fclose(f);
+        f = NULL;
+    }
 }
 
+/*
+ * FIXME: I have no idea how to convert AVFrame to libpng's png_write_row
+ * so there is png_save2
+ */
 static void png_save(unsigned char *buf, 
                      int wrap, 
                      int xsize, 
@@ -133,7 +142,8 @@ static void png_save(unsigned char *buf,
 	// Allocate memory for one row (3 bytes per pixel - RGB)
 	row = (png_bytep) malloc(3 * xsize * sizeof(png_byte));
 
-	// Write image data
+	// FIXME: Write image data
+    // HOWTO *set* row
 	for (i = 0; i < ysize; i++) {
 		for (j = 0; j < xsize; j++) {
             row[j] = buf + (i * xsize + j) * wrap;
@@ -149,6 +159,31 @@ static void png_save(unsigned char *buf,
 	if (info_ptr != NULL) png_free_data(png_ptr, info_ptr, PNG_FREE_ALL, -1);
 	if (png_ptr != NULL) png_destroy_write_struct(&png_ptr, (png_infopp)NULL);
 	if (row != NULL) free(row);
+}
+
+static void png_save2(unsigned char *buf, 
+                      int width, 
+                      int height, 
+                      char *filename) 
+{
+    FILE *fout = NULL;
+    struct TinyPngOut pngout;
+
+    fout = fopen(filename, "wb");
+    if (fout == NULL || TinyPngOut_init(&pngout, fout, width, height) != TINYPNGOUT_OK)
+        goto cleanup;
+
+    if (TinyPngOut_write(&pngout, buf, width * height) != TINYPNGOUT_OK)
+        goto cleanup;
+
+    if (TinyPngOut_write(&pngout, NULL, 0) != TINYPNGOUT_DONE)
+        goto cleanup;
+
+cleanup:
+    if (fout) {
+        fclose(fout);
+        fout = NULL;
+    }
 }
 
 static int decode_packet(int *got_frame, int cached)
@@ -189,8 +224,10 @@ static int decode_packet(int *got_frame, int cached)
 #endif
             /* This is key frame! */
             if (frame->key_frame == 1) {
-                char buf[1024];
-                snprintf(buf, sizeof(buf), "test%02d.png", video_frame_count++);
+                char buf[PATH_MAX] = { '\0' };
+                snprintf(buf, sizeof(buf) - 1, "%s/test%02d.png", 
+                         outputDir, 
+                         video_frame_count++);
                 /* Convert the image from its native format to RGB */
                 sws_scale(sws_ctx, 
                           frame->data, 
@@ -199,9 +236,8 @@ static int decode_packet(int *got_frame, int cached)
                           height, 
                           frameRGB->data, 
                           frameRGB->linesize);
-				pgm_save(frame->data[0], frame->linesize[0], width, height, buf);
-                // FIXME: save to png is not work correctly!
-                //png_save(frameRGB->data[0], frameRGB->linesize[0], width, height, buf);
+                /* TODO: save to png */
+                png_save2(frameRGB->data[0], width, height, buf);
             }
         }
     }
@@ -275,6 +311,8 @@ int findKeyFrame(char *src_filename, char *output_dir)
 {
     int ret = 0, got_frame;
 
+    strncpy(outputDir, output_dir, PATH_MAX);
+
     /* register all formats and codecs */
     av_register_all();
 
@@ -315,18 +353,28 @@ int findKeyFrame(char *src_filename, char *output_dir)
         goto end;
     }
 
-    frameRGB = av_frame_alloc();
-    if (!frameRGB) {
-        fprintf(stderr, "Could not allocate frameRGB\n");
-        ret = AVERROR(ENOMEM);
-        goto end;
+    /* TODO: thanks for cjacker's extractor source code */
+    {
+        frameRGB = av_frame_alloc();
+        if (!frameRGB) {
+            fprintf(stderr, "Could not allocate frameRGB\n");
+            ret = AVERROR(ENOMEM);
+            goto end;
+        }
+        int numBytes = avpicture_get_size(AV_PIX_FMT_RGB24, width, height);
+        uint8_t *buffer = malloc(numBytes * sizeof(uint8_t));
+        avpicture_fill((AVPicture *)frameRGB, buffer, AV_PIX_FMT_RGB24, width, height);
+        sws_ctx = sws_getContext(width, 
+                                 height, 
+                                 pix_fmt, 
+                                 width, 
+                                 height, 
+                                 AV_PIX_FMT_RGB24, 
+                                 SWS_BILINEAR, 
+                                 NULL, 
+                                 NULL, 
+                                 NULL);
     }
-
-    int numBytes = avpicture_get_size(AV_PIX_FMT_RGB24, width, height);
-    uint8_t *buffer = malloc(numBytes * sizeof(uint8_t));
-    avpicture_fill((AVPicture *)frameRGB, buffer, AV_PIX_FMT_RGB24, width, height);
-    sws_ctx = sws_getContext(width, height, pix_fmt, width, height, AV_PIX_FMT_RGB24, 
-            SWS_BILINEAR, NULL, NULL, NULL);
 
     /* initialize packet, set data to NULL */
     av_init_packet(&pkt);
@@ -357,6 +405,8 @@ end:
     avcodec_free_context(&video_dec_ctx);
     avformat_close_input(&fmt_ctx);
     av_frame_free(&frame);
+    av_frame_free(&frameRGB);
+    sws_ctx = NULL;
 
     return ret < 0;
 }
