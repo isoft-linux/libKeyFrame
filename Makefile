@@ -25,7 +25,7 @@ libKeyFrame:
 
 test:
 	$(CC) -o test.o -c $(CFLAGS) $(CPATH) test.c
-	$(CC) -o test test.o libKeyFrame.o $(LIBPATH) $(LIBS) -lKeyFrame
+	$(CC) -o test test.o libKeyFrame.o $(LIBPATH) $(LIBS) -L. -lKeyFrame
 
 makePNG:
 	$(CC) -o makePNG.o -c $(CFLAGS) $(CPATH) makePNG.c
@@ -34,6 +34,9 @@ makePNG:
 install:
 	install -m 0755 libKeyFrame.so /usr/lib/libKeyFrame.so
 	install -m 0644 libKeyFrame.h /usr/include/libKeyFrame.h
+
+run:
+	LD_LIBRARY_PATH=. ./test
 
 clean: 
 	rm -rf *.o *.so *.png *.pgm test
