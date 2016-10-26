@@ -1,4 +1,4 @@
-# use pkg-config for getting CFLAGS and LDLIBS
+# use pkg-config for getting CFLAGS and LIBS
 FFMPEG_LIBS=    libavdevice                        \
                 libavformat                        \
                 libavfilter                        \
@@ -6,15 +6,16 @@ FFMPEG_LIBS=    libavdevice                        \
                 libswresample                      \
                 libswscale                         \
                 libavutil                          \
+				libpng							   \
 
 CC		= gcc
 CFLAGS	+= -O2 -Wall -fPIC -std=gnu11
-#CFLAGS  += -g -DDEBUG
+CFLAGS  += -g -DDEBUG
 CFLAGS	:= $(shell pkg-config --cflags $(FFMPEG_LIBS)) $(CFLAGS)
 CPATH	=
 LIBPATH	=
 LIBS	+= -lm
-LIBS 	:= $(shell pkg-config --libs $(FFMPEG_LIBS)) $(LDLIBS)
+LIBS 	:= $(shell pkg-config --libs $(FFMPEG_LIBS)) $(LIBS)
 
 all: libKeyFrame
 
@@ -26,9 +27,13 @@ test:
 	$(CC) -o test.o -c $(CFLAGS) $(CPATH) test.c
 	$(CC) -o test test.o libKeyFrame.o $(LIBPATH) $(LIBS) -lKeyFrame
 
+makePNG:
+	$(CC) -o makePNG.o -c $(CFLAGS) $(CPATH) makePNG.c
+	$(CC) -o makePNG makePNG.o $(LIBPATH) $(LIBS)
+
 install:
 	install -m 0755 libKeyFrame.so /usr/lib/libKeyFrame.so
 	install -m 0644 libKeyFrame.h /usr/include/libKeyFrame.h
 
 clean: 
-	rm -rf *.o *.so test
+	rm -rf *.o *.so *.png *.pgm test

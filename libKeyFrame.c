@@ -25,6 +25,8 @@
 #include <libavutil/samplefmt.h>
 #include <libavutil/timestamp.h>
 #include <libavformat/avformat.h>
+#include <libswscale/swscale.h>
+#include <png.h>
 
 #include "libKeyFrame.h"
 
@@ -46,17 +48,107 @@ static int video_frame_count = 0;
  * differences of API usage between them. */
 static int refcount = 0;
 
+static AVFrame *frameRGB = NULL;
+static struct SwsContext *sws_ctx = NULL;
+
+/*
+ * raw, linesize, width, height, filename
+ */
 static void pgm_save(unsigned char *buf, int wrap, int xsize, int ysize,           
                      char *filename)                                               
 {                                                                                  
-    FILE *f;                                                                       
-    int i;                                                                         
+    FILE *f;
+    int i;
                                                                                    
-    f = fopen(filename,"w");                                                       
+    f = fopen(filename, "wb");                                                       
     fprintf(f, "P5\n%d %d\n%d\n", xsize, ysize, 255);                              
-    for (i = 0; i < ysize; i++)                                                    
-        fwrite(buf + i * wrap, 1, xsize, f);                                       
-    fclose(f);                                                                     
+    for (i = 0; i < ysize; i++)
+        fwrite(buf + i * wrap, 1, xsize, f);
+    fclose(f);
+}
+
+static void png_save(unsigned char *buf, 
+                     int wrap, 
+                     int xsize, 
+                     int ysize, 
+                     char *filename) 
+{
+    int i, j;
+
+	int code = 0;
+	FILE *fp = NULL;
+	png_structp png_ptr = NULL;
+	png_infop info_ptr = NULL;
+	png_bytep row = NULL;
+	
+	// Open file for writing (binary mode)
+	fp = fopen(filename, "wb");
+	if (fp == NULL) {
+		fprintf(stderr, "Could not open file %s for writing\n", filename);
+		code = 1;
+		goto finalise;
+	}
+
+	// Initialize write structure
+	png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+	if (png_ptr == NULL) {
+		fprintf(stderr, "Could not allocate write struct\n");
+		code = 1;
+		goto finalise;
+	}
+
+	// Initialize info structure
+	info_ptr = png_create_info_struct(png_ptr);
+	if (info_ptr == NULL) {
+		fprintf(stderr, "Could not allocate info struct\n");
+		code = 1;
+		goto finalise;
+	}
+
+	// Setup Exception handling
+	if (setjmp(png_jmpbuf(png_ptr))) {
+		fprintf(stderr, "Error during png creation\n");
+		code = 1;
+		goto finalise;
+	}
+
+	png_init_io(png_ptr, fp);
+
+	// Write header (8 bit colour depth)
+	png_set_IHDR(png_ptr, info_ptr, xsize, ysize,
+			8, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE,
+			PNG_COMPRESSION_TYPE_BASE, PNG_FILTER_TYPE_BASE);
+
+	// Set title
+	if (filename != NULL) {
+		png_text title_text;
+		title_text.compression = PNG_TEXT_COMPRESSION_NONE;
+		title_text.key = "Title";
+		title_text.text = filename;
+		png_set_text(png_ptr, info_ptr, &title_text, 1);
+	}
+
+	png_write_info(png_ptr, info_ptr);
+
+	// Allocate memory for one row (3 bytes per pixel - RGB)
+	row = (png_bytep) malloc(3 * xsize * sizeof(png_byte));
+
+	// Write image data
+	for (i = 0; i < ysize; i++) {
+		for (j = 0; j < xsize; j++) {
+            row[j] = buf + (i * xsize + j) * wrap;
+        }
+        png_write_row(png_ptr, row);
+	}
+
+	// End write
+	png_write_end(png_ptr, NULL);
+
+	finalise:
+	if (fp != NULL) fclose(fp);
+	if (info_ptr != NULL) png_free_data(png_ptr, info_ptr, PNG_FREE_ALL, -1);
+	if (png_ptr != NULL) png_destroy_write_struct(&png_ptr, (png_infopp)NULL);
+	if (row != NULL) free(row);
 }
 
 static int decode_packet(int *got_frame, int cached)
@@ -98,8 +190,18 @@ static int decode_packet(int *got_frame, int cached)
             /* This is key frame! */
             if (frame->key_frame == 1) {
                 char buf[1024];
-                snprintf(buf, sizeof(buf), "test%02d.pgm", video_frame_count++);
-                pgm_save(frame->data[0], frame->linesize[0], frame->width, frame->height, buf);
+                snprintf(buf, sizeof(buf), "test%02d.png", video_frame_count++);
+                /* Convert the image from its native format to RGB */
+                sws_scale(sws_ctx, 
+                          frame->data, 
+                          frame->linesize, 
+                          0, 
+                          height, 
+                          frameRGB->data, 
+                          frameRGB->linesize);
+				pgm_save(frame->data[0], frame->linesize[0], width, height, buf);
+                // FIXME: save to png is not work correctly!
+                //png_save(frameRGB->data[0], frameRGB->linesize[0], width, height, buf);
             }
         }
     }
@@ -164,6 +266,8 @@ static int open_codec_context(int *stream_idx,
         *stream_idx = stream_index;
     }
 
+    
+
     return 0;
 }
 
@@ -210,6 +314,19 @@ int findKeyFrame(char *src_filename, char *output_dir)
         ret = AVERROR(ENOMEM);
         goto end;
     }
+
+    frameRGB = av_frame_alloc();
+    if (!frameRGB) {
+        fprintf(stderr, "Could not allocate frameRGB\n");
+        ret = AVERROR(ENOMEM);
+        goto end;
+    }
+
+    int numBytes = avpicture_get_size(AV_PIX_FMT_RGB24, width, height);
+    uint8_t *buffer = malloc(numBytes * sizeof(uint8_t));
+    avpicture_fill((AVPicture *)frameRGB, buffer, AV_PIX_FMT_RGB24, width, height);
+    sws_ctx = sws_getContext(width, height, pix_fmt, width, height, AV_PIX_FMT_RGB24, 
+            SWS_BILINEAR, NULL, NULL, NULL);
 
     /* initialize packet, set data to NULL */
     av_init_packet(&pkt);
