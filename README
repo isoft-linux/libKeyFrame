@@ -1,0 +1,19 @@
+libKeyFrame
+
+Seek key frame and decode to raw data.
+
+
+Dependence
+
+sudo pacman -S ffmpeg
+
+
+Build
+
+make
+sudo make install
+
+
+Testcase
+
+make test
