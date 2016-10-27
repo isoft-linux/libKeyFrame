@@ -17,3 +17,4 @@ sudo make install
 Testcase
 
 make test
+./test /data/download/isoft.avi(mov, mpg, f4v, mp4, wmv, m4v, mpeg, mkv, rmvb) /tmp
