@@ -6,7 +6,7 @@ FFMPEG_LIBS=    libavdevice                        \
                 libswresample                      \
                 libswscale                         \
                 libavutil                          \
-				libpng							   \
+#				libpng							   \
 
 CC		= gcc
 CFLAGS	+= -O2 -Wall -fPIC -std=gnu11

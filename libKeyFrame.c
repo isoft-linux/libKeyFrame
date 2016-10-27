@@ -36,7 +36,6 @@ static AVCodecContext *video_dec_ctx = NULL;
 static int width, height;
 static enum AVPixelFormat pix_fmt;
 static AVStream *video_stream = NULL;
-static const char *src_filename = NULL;
 
 static int video_stream_idx = -1;
 static AVFrame *frame = NULL;
@@ -226,8 +225,9 @@ static int decode_packet(int *got_frame, int cached)
             /* This is key frame! */
             if (frame->key_frame == 1) {
                 char buf[PATH_MAX] = { '\0' };
-                snprintf(buf, sizeof(buf) - 1, "%s/test%02d.png", 
+                snprintf(buf, sizeof(buf) - 1, "%s/%s%02d.png", 
                          outputDir, 
+                         fmt_ctx->filename,
                          video_frame_count++);
                 /* Convert the image from its native format to RGB */
                 sws_scale(sws_ctx, 
@@ -264,7 +264,7 @@ static int open_codec_context(int *stream_idx,
     ret = av_find_best_stream(fmt_ctx, type, -1, -1, NULL, 0);
     if (ret < 0) {
         fprintf(stderr, "Could not find %s stream in input file '%s'\n",
-                av_get_media_type_string(type), src_filename);
+                av_get_media_type_string(type), fmt_ctx->filename);
         return ret;
     } else {
         stream_index = ret;
@@ -343,6 +343,9 @@ int findKeyFrame(char *src_filename, char *output_dir)
         /* allocate image where the decoded image will be put */
         width = video_dec_ctx->width;
         height = video_dec_ctx->height;
+#ifdef DEBUG
+        printf("DEBUG: %s, line %d: %dx%d\n", __func__, __LINE__, width, height);
+#endif
         pix_fmt = video_dec_ctx->pix_fmt;
     }
 
