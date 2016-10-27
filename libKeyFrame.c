@@ -21,12 +21,13 @@
  * THE SOFTWARE.
  */
 
+#include <unistd.h>
+#include <libgen.h>
 #include <libavutil/imgutils.h>
 #include <libavutil/samplefmt.h>
 #include <libavutil/timestamp.h>
 #include <libavformat/avformat.h>
 #include <libswscale/swscale.h>
-#include <png.h>
 
 #include "libKeyFrame.h"
 #include "TinyPngOut.h"
@@ -227,7 +228,7 @@ static int decode_packet(int *got_frame, int cached)
                 char buf[PATH_MAX] = { '\0' };
                 snprintf(buf, sizeof(buf) - 1, "%s/%s%02d.png", 
                          outputDir, 
-                         fmt_ctx->filename,
+                         basename(fmt_ctx->filename),
                          video_frame_count++);
                 /* Convert the image from its native format to RGB */
                 sws_scale(sws_ctx, 
@@ -310,8 +311,6 @@ static int open_codec_context(int *stream_idx,
         *stream_idx = stream_index;
     }
 
-    
-
     return 0;
 }
 
@@ -319,6 +318,11 @@ int findKeyFrame(char *src_filename, char *output_dir)
 {
     int ret = 0, got_frame;
     uint8_t *buffer = NULL;
+
+    if (access(output_dir, W_OK) == -1) {
+        printf("ERROR: %s is not writable!\n", output_dir);
+        return -1;
+    }
 
     strncpy(outputDir, output_dir, PATH_MAX);
 
@@ -328,13 +332,13 @@ int findKeyFrame(char *src_filename, char *output_dir)
     /* open input file, and allocate format context */
     if (avformat_open_input(&fmt_ctx, src_filename, NULL, NULL) < 0) {
         fprintf(stderr, "Could not open source file %s\n", src_filename);
-        exit(1);
+        return -1;
     }
 
     /* retrieve stream information */
     if (avformat_find_stream_info(fmt_ctx, NULL) < 0) {
         fprintf(stderr, "Could not find stream information\n");
-        exit(1);
+        return -1;
     }
 
     if (open_codec_context(&video_stream_idx, &video_dec_ctx, fmt_ctx, AVMEDIA_TYPE_VIDEO) >= 0) {

@@ -28,10 +28,6 @@ test:
 	$(CC) -o test.o -c $(CFLAGS) $(CPATH) test.c
 	$(CC) -o test test.o libKeyFrame.o $(LIBPATH) $(LIBS) -L. -lKeyFrame
 
-makePNG:
-	$(CC) -o makePNG.o -c $(CFLAGS) $(CPATH) makePNG.c
-	$(CC) -o makePNG makePNG.o $(LIBPATH) $(LIBS)
-
 install:
 	install -m 0755 libKeyFrame.so /usr/lib/libKeyFrame.so
 	install -m 0644 libKeyFrame.h /usr/include/libKeyFrame.h
