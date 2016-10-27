@@ -54,8 +54,10 @@ static struct SwsContext *sws_ctx = NULL;
 static char outputDir[PATH_MAX] = { '\0' };
 
 /*
+ * Only for test!
  * raw, linesize, width, height, filename
  */
+#if 0
 static void pgm_save(unsigned char *buf, int wrap, int xsize, int ysize,           
                      char *filename)                                               
 {                                                                                  
@@ -71,11 +73,9 @@ static void pgm_save(unsigned char *buf, int wrap, int xsize, int ysize,
         f = NULL;
     }
 }
+#endif
 
-/*
- * FIXME: I have no idea how to convert AVFrame to libpng's png_write_row
- * so there is png_save2
- */
+#if 0
 static void png_save(unsigned char *buf, 
                      int wrap, 
                      int xsize, 
@@ -160,6 +160,7 @@ static void png_save(unsigned char *buf,
 	if (png_ptr != NULL) png_destroy_write_struct(&png_ptr, (png_infopp)NULL);
 	if (row != NULL) free(row);
 }
+#endif
 
 static void png_save2(unsigned char *buf, 
                       int width, 
@@ -230,13 +231,13 @@ static int decode_packet(int *got_frame, int cached)
                          video_frame_count++);
                 /* Convert the image from its native format to RGB */
                 sws_scale(sws_ctx, 
-                          frame->data, 
+                          (const uint8_t * const*)frame->data, 
                           frame->linesize, 
                           0, 
                           height, 
                           frameRGB->data, 
                           frameRGB->linesize);
-                /* TODO: save to png */
+                /* Save to png */
                 png_save2(frameRGB->data[0], width, height, buf);
             }
         }
@@ -270,13 +271,19 @@ static int open_codec_context(int *stream_idx,
         st = fmt_ctx->streams[stream_index];
 
         /* find decoder for the stream */
+#if LIBAVFORMAT_BUILD > AV_VERSION_INT(56, 40, 101)
         dec = avcodec_find_decoder(st->codecpar->codec_id);
+#else
+        *dec_ctx = st->codec;
+        dec = avcodec_find_decoder(st->codec->codec_id);
+#endif
         if (!dec) {
             fprintf(stderr, "Failed to find %s codec\n",
                     av_get_media_type_string(type));
             return AVERROR(EINVAL);
         }
 
+#if LIBAVFORMAT_BUILD > AV_VERSION_INT(56, 40, 101)
         /* Allocate a codec context for the decoder */
         *dec_ctx = avcodec_alloc_context3(dec);
         if (!*dec_ctx) {
@@ -291,6 +298,7 @@ static int open_codec_context(int *stream_idx,
                     av_get_media_type_string(type));
             return ret;
         }
+#endif
 
         /* Init the decoders, with or without reference counting */
         av_dict_set(&opts, "refcounted_frames", refcount ? "1" : "0", 0);
@@ -310,6 +318,7 @@ static int open_codec_context(int *stream_idx,
 int findKeyFrame(char *src_filename, char *output_dir)
 {
     int ret = 0, got_frame;
+    uint8_t *buffer = NULL;
 
     strncpy(outputDir, output_dir, PATH_MAX);
 
@@ -353,28 +362,24 @@ int findKeyFrame(char *src_filename, char *output_dir)
         goto end;
     }
 
-    /* TODO: thanks for cjacker's extractor source code */
-    {
-        frameRGB = av_frame_alloc();
-        if (!frameRGB) {
-            fprintf(stderr, "Could not allocate frameRGB\n");
-            ret = AVERROR(ENOMEM);
-            goto end;
-        }
-        int numBytes = avpicture_get_size(AV_PIX_FMT_RGB24, width, height);
-        uint8_t *buffer = malloc(numBytes * sizeof(uint8_t));
-        avpicture_fill((AVPicture *)frameRGB, buffer, AV_PIX_FMT_RGB24, width, height);
-        sws_ctx = sws_getContext(width, 
-                                 height, 
-                                 pix_fmt, 
-                                 width, 
-                                 height, 
-                                 AV_PIX_FMT_RGB24, 
-                                 SWS_BILINEAR, 
-                                 NULL, 
-                                 NULL, 
-                                 NULL);
+    frameRGB = av_frame_alloc();
+    if (!frameRGB) {
+        fprintf(stderr, "Could not allocate frameRGB\n");
+        ret = AVERROR(ENOMEM);
+        goto end;
     }
+    buffer = malloc(avpicture_get_size(AV_PIX_FMT_RGB24, width, height) * sizeof(uint8_t));
+    avpicture_fill((AVPicture *)frameRGB, buffer, AV_PIX_FMT_RGB24, width, height);
+    sws_ctx = sws_getContext(width, 
+                             height, 
+                             pix_fmt, 
+                             width, 
+                             height, 
+                             AV_PIX_FMT_RGB24, 
+                             SWS_BILINEAR, 
+                             NULL, 
+                             NULL, 
+                             NULL);
 
     /* initialize packet, set data to NULL */
     av_init_packet(&pkt);
@@ -403,10 +408,13 @@ int findKeyFrame(char *src_filename, char *output_dir)
 
 end:
     avcodec_free_context(&video_dec_ctx);
+#if LIBAVFORMAT_BUILD >= AV_VERSION_INT(57, 48, 101)
     avformat_close_input(&fmt_ctx);
+#endif
     av_frame_free(&frame);
     av_frame_free(&frameRGB);
     sws_ctx = NULL;
+    if (buffer) free(buffer); buffer = NULL;
 
     return ret < 0;
 }

@@ -10,7 +10,7 @@ FFMPEG_LIBS=    libavdevice                        \
 
 CC		= gcc
 CFLAGS	+= -O2 -Wall -fPIC -std=gnu11
-CFLAGS  += -g -DDEBUG
+# CFLAGS  += -g -DDEBUG
 CFLAGS	:= $(shell pkg-config --cflags $(FFMPEG_LIBS)) $(CFLAGS)
 CPATH	=
 LIBPATH	=
