@@ -1,6 +1,5 @@
 /*
  * Copyright (C) 2016 Leslie Zhai <xiang.zhai@i-soft.com.cn>
- * Copyright (c) 2012 Stefano Sabatini
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal

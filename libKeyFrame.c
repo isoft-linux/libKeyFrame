@@ -1,5 +1,7 @@
 /*
  * Copyright (C) 2016 Leslie Zhai <xiang.zhai@i-soft.com.cn>
+ * Copyright (C) 2016 Cjacker <cjacker@foxmail.com>
+ * Copyright (C) 2013 - 2015 A.Greensted <andy@labbookpages.co.uk>
  * Copyright (c) 2012 Stefano Sabatini
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -28,6 +30,9 @@
 #include <libavutil/timestamp.h>
 #include <libavformat/avformat.h>
 #include <libswscale/swscale.h>
+#ifdef ENABLE_LIBPNG
+#include <png.h>
+#endif
 
 #include "libKeyFrame.h"
 #include "TinyPngOut.h"
@@ -75,7 +80,7 @@ static void pgm_save(unsigned char *buf, int wrap, int xsize, int ysize,
 }
 #endif
 
-#if 0
+#ifdef ENABLE_LIBPNG
 static void png_save(unsigned char *buf, 
                      int wrap, 
                      int xsize, 
@@ -83,7 +88,6 @@ static void png_save(unsigned char *buf,
                      char *filename) 
 {
     int i, j;
-
 	int code = 0;
 	FILE *fp = NULL;
 	png_structp png_ptr = NULL;
@@ -124,9 +128,15 @@ static void png_save(unsigned char *buf,
 	png_init_io(png_ptr, fp);
 
 	// Write header (8 bit colour depth)
-	png_set_IHDR(png_ptr, info_ptr, xsize, ysize,
-			8, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE,
-			PNG_COMPRESSION_TYPE_BASE, PNG_FILTER_TYPE_BASE);
+	png_set_IHDR(png_ptr, 
+                 info_ptr, 
+                 xsize, 
+                 ysize, 
+                 8, 
+                 PNG_COLOR_TYPE_RGB, 
+                 PNG_INTERLACE_NONE, 
+                 PNG_COMPRESSION_TYPE_BASE, 
+                 PNG_FILTER_TYPE_BASE);
 
 	// Set title
 	if (filename != NULL) {
@@ -142,8 +152,8 @@ static void png_save(unsigned char *buf,
 	// Allocate memory for one row (3 bytes per pixel - RGB)
 	row = (png_bytep) malloc(3 * xsize * sizeof(png_byte));
 
-	// FIXME: Write image data
-    // HOWTO *set* row
+	// Write image data
+    // FIXME: HOWTO *set* row
 	for (i = 0; i < ysize; i++) {
 		for (j = 0; j < xsize; j++) {
             row[j] = buf + (i * xsize + j) * wrap;
@@ -154,7 +164,7 @@ static void png_save(unsigned char *buf,
 	// End write
 	png_write_end(png_ptr, NULL);
 
-	finalise:
+finalise:
 	if (fp != NULL) fclose(fp);
 	if (info_ptr != NULL) png_free_data(png_ptr, info_ptr, PNG_FREE_ALL, -1);
 	if (png_ptr != NULL) png_destroy_write_struct(&png_ptr, (png_infopp)NULL);
@@ -369,6 +379,10 @@ int findKeyFrame(char *src_filename, char *output_dir)
         goto end;
     }
 
+    /*
+     * Prepare for RGB frame and sws context
+     * when decoding it needs to convert native mode to RGB mode 
+     */
     frameRGB = av_frame_alloc();
     if (!frameRGB) {
         fprintf(stderr, "Could not allocate frameRGB\n");
