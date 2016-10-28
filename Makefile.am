@@ -1,3 +1,6 @@
+pkgconfigdir = $(libdir)/pkgconfig
+pkgconfig_DATA = libKeyFrame.pc
+
 libKeyFrameincludedir = $(includedir)
 libKeyFrameinclude_HEADERS = libKeyFrame.h
 

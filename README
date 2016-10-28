@@ -1,6 +1,6 @@
 libKeyFrame
 
-Seek key frame and decode to raw data.
+Seek key frame from video and save to png
 
 
 Dependence
