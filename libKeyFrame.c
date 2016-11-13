@@ -282,7 +282,7 @@ static int open_codec_context(int *stream_idx,
         st = fmt_ctx->streams[stream_index];
 
         /* find decoder for the stream */
-#if LIBAVFORMAT_BUILD > AV_VERSION_INT(56, 40, 101)
+#if LIBAVFORMAT_BUILD > AV_VERSION_INT(57, 25, 100)
         dec = avcodec_find_decoder(st->codecpar->codec_id);
 #else
         *dec_ctx = st->codec;
@@ -294,7 +294,7 @@ static int open_codec_context(int *stream_idx,
             return AVERROR(EINVAL);
         }
 
-#if LIBAVFORMAT_BUILD > AV_VERSION_INT(56, 40, 101)
+#if LIBAVFORMAT_BUILD > AV_VERSION_INT(57, 25, 100)
         /* Allocate a codec context for the decoder */
         *dec_ctx = avcodec_alloc_context3(dec);
         if (!*dec_ctx) {
