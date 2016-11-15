@@ -37,9 +37,12 @@
 #include "libKeyFrame.h"
 #include "TinyPngOut.h"
 
+#define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
+
 static AVFormatContext *fmt_ctx = NULL;
 static AVCodecContext *video_dec_ctx = NULL;
 static int width, height;
+static int t_width, t_height;
 static enum AVPixelFormat pix_fmt;
 static AVStream *video_stream = NULL;
 
@@ -56,7 +59,7 @@ static int refcount = 0;
 
 static AVFrame *frameRGB = NULL;
 static struct SwsContext *sws_ctx = NULL;
-static char outputDir[PATH_MAX] = { '\0' };
+static char outDir[PATH_MAX] = { '\0' };
 
 /*
  * Only for test!
@@ -173,18 +176,18 @@ finalise:
 #endif
 
 static void png_save2(unsigned char *buf, 
-                      int width, 
-                      int height, 
+                      int nWidth, 
+                      int nHeight, 
                       char *filename) 
 {
     FILE *fout = NULL;
     struct TinyPngOut pngout;
 
     fout = fopen(filename, "wb");
-    if (fout == NULL || TinyPngOut_init(&pngout, fout, width, height) != TINYPNGOUT_OK)
+    if (fout == NULL || TinyPngOut_init(&pngout, fout, nWidth, nHeight) != TINYPNGOUT_OK)
         goto cleanup;
 
-    if (TinyPngOut_write(&pngout, buf, width * height) != TINYPNGOUT_OK)
+    if (TinyPngOut_write(&pngout, buf, nWidth * nHeight) != TINYPNGOUT_OK)
         goto cleanup;
 
     if (TinyPngOut_write(&pngout, NULL, 0) != TINYPNGOUT_DONE)
@@ -227,7 +230,7 @@ static int decode_packet(int *got_frame, int cached)
                         av_get_pix_fmt_name(frame->format));
                 return -1;
             }
-#ifdef DEBUG
+#ifdef NOISE_DEBUG
             printf("video_frame%s n:%d coded_n:%d pts:%s\n",
                    cached ? "(cached)" : "",
                    video_frame_count, frame->coded_picture_number,
@@ -237,7 +240,7 @@ static int decode_packet(int *got_frame, int cached)
             if (frame->key_frame == 1) {
                 char buf[PATH_MAX] = { '\0' };
                 snprintf(buf, sizeof(buf) - 1, "%s/%s%02d.png", 
-                         outputDir, 
+                         outDir, 
                          basename(fmt_ctx->filename),
                          video_frame_count++);
                 /* Convert the image from its native format to RGB */
@@ -249,7 +252,7 @@ static int decode_packet(int *got_frame, int cached)
                           frameRGB->data, 
                           frameRGB->linesize);
                 /* Save to png */
-                png_save2(frameRGB->data[0], width, height, buf);
+                png_save2(frameRGB->data[0], t_width, t_height, buf);
             }
         }
     }
@@ -324,24 +327,24 @@ static int open_codec_context(int *stream_idx,
     return 0;
 }
 
-int findKeyFrame(char *src_filename, char *output_dir)
+int findKeyFrame(char *src_file, char *out_dir, int img_width, int img_height)
 {
     int ret = 0, got_frame;
     uint8_t *buffer = NULL;
 
-    if (access(output_dir, W_OK) == -1) {
-        printf("ERROR: %s is not writable!\n", output_dir);
+    if (access(out_dir, W_OK) == -1) {
+        printf("ERROR: %s is not writable!\n", out_dir);
         return -1;
     }
 
-    strncpy(outputDir, output_dir, PATH_MAX);
+    strncpy(outDir, out_dir, PATH_MAX);
 
     /* register all formats and codecs */
     av_register_all();
 
     /* open input file, and allocate format context */
-    if (avformat_open_input(&fmt_ctx, src_filename, NULL, NULL) < 0) {
-        fprintf(stderr, "Could not open source file %s\n", src_filename);
+    if (avformat_open_input(&fmt_ctx, src_file, NULL, NULL) < 0) {
+        fprintf(stderr, "Could not open source file %s\n", src_file);
         return -1;
     }
 
@@ -355,8 +358,20 @@ int findKeyFrame(char *src_filename, char *output_dir)
         video_stream = fmt_ctx->streams[video_stream_idx];
 
         /* allocate image where the decoded image will be put */
-        width = video_dec_ctx->width;
-        height = video_dec_ctx->height;
+        t_width = width = video_dec_ctx->width;
+        t_height = height = video_dec_ctx->height;
+        if (img_width && img_height) {
+            t_width = MIN(width, img_width);
+            t_height = MIN(height, img_height);
+        } else if (img_width * img_height == 0) {
+            if (img_width) {
+                t_width = MIN(width, img_width);
+                t_height = (double)t_width / ((double)video_dec_ctx->width / (double)video_dec_ctx->height);
+            } else if (img_height) {
+                t_height = MIN(height, img_height);
+                t_width = (double)t_height * ((double)video_dec_ctx->width / (double)video_dec_ctx->height);
+            }
+        }
 #ifdef DEBUG
         printf("DEBUG: %s, line %d: %dx%d\n", __func__, __LINE__, width, height);
 #endif
@@ -364,7 +379,7 @@ int findKeyFrame(char *src_filename, char *output_dir)
     }
 
     /* dump input information to stderr */
-    av_dump_format(fmt_ctx, 0, src_filename, 0);
+    av_dump_format(fmt_ctx, 0, src_file, 0);
 
     if (!video_stream) {
         fprintf(stderr, "Could not find video stream in the input, aborting\n");
@@ -389,13 +404,13 @@ int findKeyFrame(char *src_filename, char *output_dir)
         ret = AVERROR(ENOMEM);
         goto end;
     }
-    buffer = malloc(avpicture_get_size(AV_PIX_FMT_RGB24, width, height) * sizeof(uint8_t));
-    avpicture_fill((AVPicture *)frameRGB, buffer, AV_PIX_FMT_RGB24, width, height);
+    buffer = malloc(avpicture_get_size(AV_PIX_FMT_RGB24, t_width, t_height) * sizeof(uint8_t));
+    avpicture_fill((AVPicture *)frameRGB, buffer, AV_PIX_FMT_RGB24, t_width, t_height);
     sws_ctx = sws_getContext(width, 
                              height, 
                              pix_fmt, 
-                             width, 
-                             height, 
+                             t_width, 
+                             t_height, 
                              AV_PIX_FMT_RGB24, 
                              SWS_BILINEAR, 
                              NULL, 

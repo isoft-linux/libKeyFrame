@@ -15,6 +15,14 @@ make
 sudo make install
 
 
-Testcase
+Static Analyzer
 
-./test /data/download/isoft.avi(mov, mpg, f4v, mp4, wmv, m4v, mpeg, mkv, rmvb) /tmp
+scan-build -k -v -V ./autogen.sh --prefix=/usr --enable-debug=yes
+scan-build -k -v -V make
+
+
+Usage
+
+/usr/bin/keyframes /data/download/isoft.avi(mov, mpg, f4v, mp4, wmv, m4v, mpeg, mkv, rmvb) /tmp
+/usr/bin/keyframes /data/download/isoft.mp4 /tmp 320 240
+/usr/bin/keyframes /data/download/20001134720_7618331.mp4 /tmp 160

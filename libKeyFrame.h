@@ -29,7 +29,19 @@
 extern "C" {
 #endif
 
-LIBKEYFRAME_EXPORTED int findKeyFrame(char *src_filename, char *output_dir);
+/*
+ * Find all keyfram from video then save to PNG file.
+ *
+ * @param src_file      The video path of the keyframe to be extracted
+ * @param out_dir       Keyframe output folder
+ * @param img_width     Thumbnail width
+ * @param img_height    Thumbnail height
+ * @return      0 on success, -1 on error
+ */
+LIBKEYFRAME_EXPORTED int findKeyFrame(char *src_file, 
+                                      char *out_dir, 
+                                      int img_width, 
+                                      int img_height);
 
 #ifdef __cplusplus
 }

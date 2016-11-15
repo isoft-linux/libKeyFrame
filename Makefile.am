@@ -10,8 +10,8 @@ libKeyFrame_la_SOURCES 	= libKeyFrame.c	\
 libKeyFrame_la_CFLAGS 	= ${FFMPEG_CFLAGS}
 libKeyFrame_la_LIBADD	= ${FFMPEG_LIBS}
 
-noinst_PROGRAMS	= test
+bin_PROGRAMS = keyframes
 
-test_SOURCES	= test.c
-test_CFLAGS 	= ${FFMPEG_CFLAGS}
-test_LDADD 		= libKeyFrame.la
+keyframes_SOURCES	= keyframes.c
+keyframes_CFLAGS 	= ${FFMPEG_CFLAGS}
+keyframes_LDADD		= libKeyFrame.la
