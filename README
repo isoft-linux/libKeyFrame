@@ -21,6 +21,14 @@ scan-build -k -v -V ./autogen.sh --prefix=/usr --enable-debug=yes
 scan-build -k -v -V make
 
 
+Sanitizer
+
+export CC=clang
+export CFLAGS="$CFLAGS -Wall -fsanitize=address -fno-omit-frame-pointer"
+./autogen.sh --prefix=/usr --enable-debug=yes
+make
+
+
 Usage && testcase
 
 /usr/bin/keyframes /data/download/isoft.avi(mov, mpg, f4v, mp4, wmv, m4v, mpeg, mkv, rmvb) /tmp
