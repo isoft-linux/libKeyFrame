@@ -447,6 +447,7 @@ end:
 #if LIBAVFORMAT_BUILD >= AV_VERSION_INT(57, 48, 101)
     avformat_close_input(&fmt_ctx);
 #endif
+    fmt_ctx = NULL;
     av_frame_free(&frame);
     av_frame_free(&frameRGB);
     sws_ctx = NULL;

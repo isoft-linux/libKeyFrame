@@ -15,3 +15,8 @@ bin_PROGRAMS = keyframes
 keyframes_SOURCES	= keyframes.c
 keyframes_CFLAGS 	= ${FFMPEG_CFLAGS}
 keyframes_LDADD		= libKeyFrame.la
+
+noinst_PROGRAMS = test
+test_SOURCES	= test.c
+test_CFLAGS 	= ${FFMPEG_CFLAGS}
+test_LDADD 		= libKeyFrame.la
