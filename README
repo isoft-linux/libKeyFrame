@@ -24,14 +24,18 @@ scan-build -k -v -V make
 Sanitizer
 
 export CC=clang
-export CFLAGS="$CFLAGS -Wall -fsanitize=address -fno-omit-frame-pointer"
-./autogen.sh --prefix=/usr --enable-debug=yes
+export CFLAGS="$CFLAGS -Wall -fsanitize=address -fsanitize=undefined -fno-omit-frame-pointer"
+./autogen.sh --host=x86_64-unknown-linux-gnu --prefix=/usr --enable-debug=yes
 make
 
 
-Usage && testcase
+Usage
 
 /usr/bin/keyframes /data/download/isoft.avi(mov, mpg, f4v, mp4, wmv, m4v, mpeg, mkv, rmvb) /tmp
 /usr/bin/keyframes /data/download/isoft.mp4 /tmp 320 240
 /usr/bin/keyframes /data/download/20001134720_7618331.mp4 /tmp 160
 /usr/bin/keyframes /data/download/sirtoozee.jpg /tmp
+
+Testcase
+
+./test
