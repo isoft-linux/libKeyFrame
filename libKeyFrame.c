@@ -25,9 +25,7 @@
 
 #include <unistd.h>
 #include <libgen.h>
-#include <libavutil/imgutils.h>
-#include <libavutil/samplefmt.h>
-#include <libavutil/timestamp.h>
+#include <libavutil/pixdesc.h>
 #include <libavformat/avformat.h>
 #include <libswscale/swscale.h>
 #ifdef ENABLE_LIBPNG
@@ -443,13 +441,14 @@ int findKeyFrame(char *src_file, char *out_dir, int img_width, int img_height)
     } while (got_frame);
 
 end:
-    avcodec_free_context(&video_dec_ctx);
+    if (video_dec_ctx) avcodec_free_context(&video_dec_ctx); video_dec_ctx = NULL;
 #if LIBAVFORMAT_BUILD >= AV_VERSION_INT(57, 48, 101)
     avformat_close_input(&fmt_ctx);
 #endif
     fmt_ctx = NULL;
-    av_frame_free(&frame);
-    av_frame_free(&frameRGB);
+    video_stream = NULL;
+    if (frame) av_frame_free(&frame); frame = NULL;
+    if (frameRGB) av_frame_free(&frameRGB); frameRGB = NULL;
     sws_ctx = NULL;
     if (buffer) free(buffer); buffer = NULL;
 
