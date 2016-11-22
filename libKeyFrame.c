@@ -180,19 +180,28 @@ static void png_save2(unsigned char *buf,
 {
     FILE *fout = NULL;
     struct TinyPngOut pngout;
+    int ret = 0;
 
     fout = fopen(filename, "wb");
-    if (fout == NULL || TinyPngOut_init(&pngout, fout, nWidth, nHeight) != TINYPNGOUT_OK)
+    if (fout == NULL || TinyPngOut_init(&pngout, fout, nWidth, nHeight) != TINYPNGOUT_OK) {
+        ret = -1;
         goto cleanup;
+    }
 
-    if (TinyPngOut_write(&pngout, buf, nWidth * nHeight) != TINYPNGOUT_OK)
+    if (TinyPngOut_write(&pngout, buf, nWidth * nHeight) != TINYPNGOUT_OK) {
+        ret = -1;
         goto cleanup;
+    }
 
-    if (TinyPngOut_write(&pngout, NULL, 0) != TINYPNGOUT_DONE)
+    if (TinyPngOut_write(&pngout, NULL, 0) != TINYPNGOUT_DONE) {
+        ret = -1;
         goto cleanup;
+    }
 
 cleanup:
     if (fout) {
+        if (ret != 0)
+            unlink(filename);
         fclose(fout);
         fout = NULL;
     }
